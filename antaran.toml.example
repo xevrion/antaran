@@ -1,0 +1,50 @@
+# Antaran configuration file
+# Copy to ~/.config/antaran/antaran.toml to use
+# All fields are optional — Antaran runs with sensible defaults if this file is absent.
+
+# Root directory to scan for git repos.
+# Default: ~/Coding
+scan_root = "~/Coding"
+
+# How often to refresh the scan in the tray daemon mode.
+# Default: 30s. Accepts Go duration strings: "30s", "1m", "5m"
+scan_interval = "30s"
+
+[git]
+# How many directory levels deep to search for git repos.
+# depth=1 scans only direct children of scan_root.
+# Default: 3
+max_depth = 3
+
+# Fetch remote before checking for unpushed commits.
+# Makes stale branch detection accurate but adds network latency.
+# Default: false
+fetch_remote = false
+
+# Mark a repo as "stale" if the last commit is older than this many days.
+# Default: 14
+stale_after_days = 14
+
+# Repos to ignore (by name or absolute path).
+# Default: none
+# ignore = ["playground", "/home/user/Coding/archived"]
+
+[process]
+# Process names to watch. Matched against /proc/<pid>/comm (the short name).
+# Default: the list below
+watch = [
+  "node",
+  "cargo",
+  "vite",
+  "next",
+  "webpack",
+  "python",
+  "uvicorn",
+  "deno",
+  "bun",
+  "go",
+]
+
+# PIDs to always ignore (e.g. a long-running daemon you don't care about).
+# Default: none
+# ignore_pids = [1234]
