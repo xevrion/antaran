@@ -1,6 +1,8 @@
 # Build outputs
 bin/
 dist/
+# But keep the hand-written frontend source
+!cmd/antaran-tray/frontend/dist/
 antaran
 
 # Go
@@ -29,3 +31,12 @@ antaran.toml
 
 # Logs
 *.log
+
+# Wails generated bindings (regenerated at build time)
+cmd/antaran-tray/frontend/wailsjs/
+
+# Wails intermediate build output
+cmd/antaran-tray/bin/
+
+# Local pkg-config shim (created by `make pkgconfig-shim`)
+# Lives in ~/.cache/antaran-pkgconfig, not the repo
