@@ -5,6 +5,7 @@ import (
 	"embed"
 	"flag"
 	"fmt"
+	"io/fs"
 	"os"
 
 	"github.com/wailsapp/wails/v2"
@@ -18,7 +19,7 @@ import (
 )
 
 //go:embed frontend/dist
-var assets embed.FS
+var assetsFS embed.FS
 
 var version = "dev"
 
@@ -37,6 +38,13 @@ func main() {
 	cfg, err := config.Load(*cfgPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "config error: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Strip the "frontend/dist" prefix so Wails sees index.html at the root.
+	assets, err := fs.Sub(assetsFS, "frontend/dist")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "assets error: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -85,8 +93,8 @@ func main() {
 			app,
 		},
 		Linux: &linux.Options{
-			Icon:                []byte{},
-			WindowIsTranslucent: false,
+			Icon:             []byte{},
+			WebviewGpuPolicy: linux.WebviewGpuPolicyNever,
 		},
 	})
 	if err != nil {
