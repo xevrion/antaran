@@ -11,6 +11,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 	"github.com/wailsapp/wails/v2/pkg/options/linux"
+	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"github.com/xevrion/antaran/internal/config"
 	anttray "github.com/xevrion/antaran/tray"
@@ -23,8 +24,8 @@ var version = "dev"
 
 func main() {
 	var (
-		cfgPath  = flag.String("config", config.DefaultPath(), "path to antaran.toml")
-		showVer  = flag.Bool("version", false, "print version and exit")
+		cfgPath = flag.String("config", config.DefaultPath(), "path to antaran.toml")
+		showVer = flag.Bool("version", false, "print version and exit")
 	)
 	flag.Parse()
 
@@ -41,53 +42,50 @@ func main() {
 
 	app := anttray.NewApp(cfg)
 
-	// wailsApp controls the popup window. We need to be able to show/hide
-	// it from the systray goroutine, so we use a channel to signal it.
-	showCh := make(chan struct{}, 1)
+	// wailsCtx is populated by OnStartup — used to show/hide the window.
+	var wailsCtx context.Context
+	ctxReady := make(chan struct{})
 
 	openWindow := func() {
-		select {
-		case showCh <- struct{}{}:
-		default:
-		}
+		// Wait until Wails has started before trying to show the window
+		<-ctxReady
+		wailsruntime.WindowShow(wailsCtx)
+		wailsruntime.WindowSetAlwaysOnTop(wailsCtx, true)
+		wailsruntime.WindowSetAlwaysOnTop(wailsCtx, false)
 	}
 
+	// cancelDaemon is called when Wails shuts down
+	daemonCtx, cancelDaemon := context.WithCancel(context.Background())
+
 	daemon := anttray.NewDaemon(app, cfg, openWindow)
-
-	// Run systray in its own goroutine — it needs its own OS thread on Linux.
-	go daemon.Run()
-
-	// Drain showCh and bring window to front. Wails doesn't expose a
-	// Show() from outside, so we start the window hidden and toggle visibility
-	// via JS window.show() called through a custom runtime bridge.
-	go func() {
-		for range showCh {
-			// Window is toggled by the frontend polling /api/show.
-			// This goroutine exists as the hook point for a future
-			// wails runtime.WindowShow() call once Wails exposes it.
-		}
-	}()
+	go daemon.Run(daemonCtx)
 
 	err = wails.Run(&options.App{
-		Title:            "Antaran",
-		Width:            480,
-		Height:           620,
-		MinWidth:         360,
-		MinHeight:        400,
-		DisableResize:    false,
-		Frameless:        false,
-		StartHidden:      false,
-		HideWindowOnClose: true, // closing hides, not quits — tray keeps running
-		BackgroundColour: &options.RGBA{R: 17, G: 17, B: 27, A: 255},
+		Title:             "Antaran",
+		Width:             480,
+		Height:            620,
+		MinWidth:          360,
+		MinHeight:         400,
+		DisableResize:     false,
+		Frameless:         false,
+		StartHidden:       false,
+		HideWindowOnClose: true,
+		BackgroundColour:  &options.RGBA{R: 17, G: 17, B: 27, A: 255},
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
-		OnStartup: func(ctx context.Context) {},
+		OnStartup: func(ctx context.Context) {
+			wailsCtx = ctx
+			close(ctxReady)
+		},
+		OnShutdown: func(ctx context.Context) {
+			cancelDaemon()
+		},
 		Bind: []interface{}{
 			app,
 		},
 		Linux: &linux.Options{
-			Icon:                []byte{}, // set via tray icon
+			Icon:                []byte{},
 			WindowIsTranslucent: false,
 		},
 	})
