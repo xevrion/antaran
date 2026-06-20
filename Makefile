@@ -4,7 +4,6 @@ BINARY      := bin/antaran
 TRAY_BINARY := bin/antaran-tray
 VERSION     := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 LDFLAGS     := -ldflags="-s -w -X main.version=$(VERSION)"
-TRAY_TAGS   := legacy_appindicator
 WAILS       := $(shell command -v wails 2>/dev/null || echo "$(HOME)/go/bin/wails")
 
 # On Fedora 40+, webkit2gtk ships as -4.1 but Wails looks for -4.0.
@@ -20,25 +19,28 @@ pkgconfig-shim:
 	@echo "Run: export PKG_CONFIG_PATH=$(SHIM_DIR):\$$PKG_CONFIG_PATH"
 
 build:
-	go build $(LDFLAGS) -tags $(TRAY_TAGS) -o $(BINARY) ./cmd/antaran
+	go build $(LDFLAGS) -o $(BINARY) ./cmd/antaran
 
 build-tray: pkgconfig-shim
 	PKG_CONFIG_PATH=$(SHIM_DIR):$(PKG_CONFIG_PATH) \
-	  $(WAILS) build -tags $(TRAY_TAGS) \
+	  $(WAILS) build \
 	  -o ../../../$(TRAY_BINARY) \
 	  -projectdir cmd/antaran-tray
 
 run:
-	go run -tags $(TRAY_TAGS) ./cmd/antaran $(ARGS)
+	go run ./cmd/antaran $(ARGS)
+
+run-tray:
+	GDK_BACKEND=x11 DISPLAY=:0 ./cmd/antaran-tray/bin/antaran-tray $(ARGS)
 
 test:
-	go test -race -tags $(TRAY_TAGS) ./...
+	go test -race ./...
 
 fmt:
 	gofmt -w .
 
 lint:
-	go vet -tags $(TRAY_TAGS) ./...
+	go vet ./...
 
 clean:
 	rm -rf bin/ dist/ cmd/antaran-tray/bin/

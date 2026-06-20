@@ -75,6 +75,27 @@ Antaran reads `/proc/<pid>/fd` to correlate socket inodes to processes. This req
 
 ## Tray App Issues
 
+### Window fails to open / "Error 71 Protocol error" on Wayland + Nvidia
+
+WebKit2GTK can fail to open a Wayland surface directly on Nvidia proprietary
+drivers. Use the X11 backend fallback:
+
+```bash
+GDK_BACKEND=x11 DISPLAY=:0 antaran-tray
+# or simply:
+make run-tray
+```
+
+Add this to your Hyprland autostart:
+
+```ini
+# ~/.config/hypr/hyprland.conf
+exec-once = GDK_BACKEND=x11 DISPLAY=:0 antaran-tray
+```
+
+The GBM buffer warnings that appear are non-fatal Nvidia/EGL messages and can
+be ignored.
+
 ### Tray icon doesn't appear on Hyprland
 
 Hyprland requires a system tray implementation (e.g. `waybar` with the `tray` module enabled). If the icon doesn't appear, check that your bar has tray support running.
