@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Antaran</title>
+  <style>
+    :root {
+      --bg:        #11111b;
+      --surface:   #1e1e2e;
+      --surface2:  #181825;
+      --border:    #313244;
+      --text:      #cdd6f4;
+      --subtext:   #a6adc8;
+      --muted:     #585b70;
+      --accent:    #89b4fa;   /* blue */
+      --green:     #a6e3a1;
+      --yellow:    #f9e2af;
+      --red:       #f38ba8;
+      --mauve:     #cba6f7;
+      --radius:    8px;
+      --font:      'JetBrains Mono', 'Cascadia Code', 'Fira Code', monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 13px;
+      line-height: 1.5;
+      user-select: none;
+      overflow-x: hidden;
+    }
+
+    /* ── Header ── */
+    header {
+      padding: 14px 16px 10px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .logo { font-size: 18px; }
+    .title-block { flex: 1; }
+    .title-block h1 {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 0.04em;
+    }
+    .title-block .tagline {
+      font-size: 11px;
+      color: var(--muted);
+    }
+    #summary-badge {
+      font-size: 11px;
+      color: var(--subtext);
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      padding: 3px 8px;
+      border-radius: 20px;
+      white-space: nowrap;
+    }
+
+    /* ── Toolbar ── */
+    .toolbar {
+      padding: 8px 16px;
+      display: flex;
+      gap: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+    .btn {
+      padding: 4px 12px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 12px;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .btn:hover { background: var(--border); border-color: var(--accent); }
+    .btn-danger {
+      color: var(--red);
+      border-color: color-mix(in srgb, var(--red) 30%, transparent);
+    }
+    .btn-danger:hover { background: color-mix(in srgb, var(--red) 15%, var(--surface)); }
+    .btn-sm { padding: 2px 8px; font-size: 11px; }
+
+    /* ── Sections ── */
+    .content { padding: 12px 16px; display: flex; flex-direction: column; gap: 16px; }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .section-title {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .count-badge {
+      font-size: 10px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      padding: 1px 6px;
+      border-radius: 10px;
+      color: var(--subtext);
+    }
+
+    /* ── Repo cards ── */
+    .repo-list { display: flex; flex-direction: column; gap: 6px; }
+    .repo-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 8px 12px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 4px;
+      align-items: start;
+    }
+    .repo-card:hover { border-color: var(--accent); }
+    .repo-name {
+      font-weight: 600;
+      color: var(--text);
+      font-size: 13px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .repo-branch {
+      font-size: 11px;
+      color: var(--mauve);
+      grid-column: 1;
+    }
+    .repo-flags {
+      font-size: 11px;
+      color: var(--subtext);
+      grid-column: 1;
+    }
+    .repo-actions { grid-column: 2; grid-row: 1 / 4; display: flex; align-items: center; }
+    .stale-badge {
+      display: inline-block;
+      font-size: 10px;
+      padding: 1px 6px;
+      border-radius: 10px;
+      background: color-mix(in srgb, var(--yellow) 20%, transparent);
+      border: 1px solid color-mix(in srgb, var(--yellow) 40%, transparent);
+      color: var(--yellow);
+      margin-left: 6px;
+    }
+
+    /* ── Process cards ── */
+    .proc-list { display: flex; flex-direction: column; gap: 6px; }
+    .proc-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 8px 12px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 2px;
+      align-items: start;
+    }
+    .proc-card:hover { border-color: var(--red); }
+    .proc-name { font-weight: 600; color: var(--text); }
+    .proc-pid  { font-size: 11px; color: var(--muted); }
+    .proc-meta { font-size: 11px; color: var(--subtext); grid-column: 1; }
+    .proc-ports {
+      font-size: 11px;
+      color: var(--green);
+      font-weight: 600;
+    }
+    .proc-actions { grid-column: 2; grid-row: 1 / 4; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; justify-content: center; }
+    .kill-label {
+      font-size: 10px;
+      color: var(--muted);
+      font-style: italic;
+    }
+
+    /* ── Empty state ── */
+    .empty {
+      text-align: center;
+      padding: 24px 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .empty .icon { font-size: 28px; margin-bottom: 8px; }
+
+    /* ── Status bar ── */
+    footer {
+      position: sticky;
+      bottom: 0;
+      background: var(--surface2);
+      border-top: 1px solid var(--border);
+      padding: 6px 16px;
+      display: flex;
+      justify-content: space-between;
+      font-size: 10px;
+      color: var(--muted);
+    }
+    #status-msg { color: var(--subtext); }
+
+    /* ── Toast ── */
+    #toast {
+      position: fixed;
+      bottom: 32px;
+      left: 50%;
+      transform: translateX(-50%) translateY(12px);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 8px 16px;
+      font-size: 12px;
+      color: var(--text);
+      opacity: 0;
+      transition: opacity 0.2s, transform 0.2s;
+      pointer-events: none;
+      z-index: 100;
+      white-space: nowrap;
+    }
+    #toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    /* scrollbar */
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo">⚙</div>
+    <div class="title-block">
+      <h1>Antaran</h1>
+      <div class="tagline">knows what your dev folder is hiding</div>
+    </div>
+    <div id="summary-badge">scanning…</div>
+  </header>
+
+  <div class="toolbar">
+    <button class="btn" onclick="refresh()">↺ Refresh</button>
+  </div>
+
+  <div class="content" id="content">
+    <div class="empty"><div class="icon">⟳</div>Loading…</div>
+  </div>
+
+  <footer>
+    <span id="status-msg">idle</span>
+    <span id="last-updated"></span>
+  </footer>
+
+  <div id="toast"></div>
+
+  <script>
+    // Wails injects window.go with the bound Go methods.
+    // We poll for it to be ready, then load data.
+
+    function waitForWails(cb) {
+      if (window.go && window.go.tray && window.go.tray.App) {
+        cb();
+      } else {
+        setTimeout(() => waitForWails(cb), 50);
+      }
+    }
+
+    function toast(msg, duration = 2500) {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.classList.add('show');
+      setTimeout(() => el.classList.remove('show'), duration);
+    }
+
+    function setStatus(msg) {
+      document.getElementById('status-msg').textContent = msg;
+    }
+
+    function setLastUpdated() {
+      const now = new Date();
+      document.getElementById('last-updated').textContent =
+        'updated ' + now.toLocaleTimeString();
+    }
+
+    async function refresh() {
+      setStatus('scanning…');
+      try {
+        const result = await window.go.tray.App.RefreshNow();
+        render(result);
+        setLastUpdated();
+        setStatus('idle');
+      } catch (e) {
+        setStatus('scan error: ' + e);
+      }
+    }
+
+    async function load() {
+      try {
+        const result = await window.go.tray.App.GetScanResult();
+        render(result);
+        setLastUpdated();
+        setStatus('idle');
+      } catch (e) {
+        setStatus('error: ' + e);
+      }
+    }
+
+    function render(data) {
+      document.getElementById('summary-badge').textContent = data.summary || 'clean';
+
+      const content = document.getElementById('content');
+      const repos = data.repos || [];
+      const procs = data.processes || [];
+
+      let html = '';
+
+      // ── Repos section ──
+      html += `<div>
+        <div class="section-header">
+          <span class="section-title">Git Repos</span>
+          <span class="count-badge">${repos.length} need attention</span>
+        </div>
+        <div class="repo-list">`;
+
+      if (repos.length === 0) {
+        html += `<div class="empty"><div class="icon">✓</div>No dirty repos</div>`;
+      } else {
+        for (const r of repos) {
+          const stale = r.stale_days >= 14
+            ? `<span class="stale-badge">stale ${r.stale_days}d</span>` : '';
+          html += `
+          <div class="repo-card">
+            <div class="repo-name">${esc(r.name)}${stale}</div>
+            <div class="repo-branch">⎇ ${esc(r.branch)}</div>
+            <div class="repo-flags">${esc(r.flags)}</div>
+            <div class="repo-actions">
+              <button class="btn btn-sm" onclick="openEditor(${esc(JSON.stringify(r.path))})">open</button>
+            </div>
+          </div>`;
+        }
+      }
+      html += `</div></div>`;
+
+      // ── Processes section ──
+      html += `<div>
+        <div class="section-header">
+          <span class="section-title">Dev Processes</span>
+          <span class="count-badge">${procs.length} running</span>
+        </div>
+        <div class="proc-list">`;
+
+      if (procs.length === 0) {
+        html += `<div class="empty"><div class="icon">✓</div>No zombie dev servers</div>`;
+      } else {
+        for (const p of procs) {
+          const ports = (p.ports && p.ports.length > 0)
+            ? p.ports.map(port => `<span class="proc-ports">:${port}</span>`).join(' ')
+            : '<span style="color:var(--muted)">no ports</span>';
+
+          html += `
+          <div class="proc-card">
+            <div class="proc-name">${esc(p.name)} <span class="proc-pid">pid:${p.pid}</span></div>
+            <div class="proc-meta">up: ${esc(p.uptime)}  ·  ${p.memory_mb.toFixed(0)}MB  ·  ${ports}</div>
+            <div class="proc-meta" style="color:var(--muted);font-size:10px" title="${esc(p.cmdline)}">${esc(truncate(p.cmdline, 52))}</div>
+            <div class="proc-actions">
+              <span class="kill-label">${esc(p.kill_label)}</span>
+              <button class="btn btn-sm btn-danger" onclick="killProc(${p.pid}, ${JSON.stringify(p.name)}, this)">Kill</button>
+            </div>
+          </div>`;
+        }
+      }
+      html += `</div></div>`;
+
+      content.innerHTML = html;
+    }
+
+    async function openEditor(path) {
+      try {
+        const result = await window.go.tray.App.OpenInEditor(path);
+        toast(result);
+      } catch (e) {
+        toast('error: ' + e);
+      }
+    }
+
+    async function killProc(pid, name, btn) {
+      btn.disabled = true;
+      btn.textContent = 'killing…';
+      try {
+        const result = await window.go.tray.App.KillProcess(pid, name);
+        toast(result);
+        // Reload after a short pause so /proc has time to reflect the kill
+        setTimeout(load, 600);
+      } catch (e) {
+        toast('error: ' + e);
+        btn.disabled = false;
+        btn.textContent = 'Kill';
+      }
+    }
+
+    function esc(str) {
+      if (str === null || str === undefined) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function truncate(str, n) {
+      if (!str) return '';
+      return str.length > n ? str.slice(0, n) + '…' : str;
+    }
+
+    // Auto-refresh every 30s to stay in sync with daemon scans
+    let autoRefreshTimer;
+    function startAutoRefresh(intervalMs) {
+      clearInterval(autoRefreshTimer);
+      autoRefreshTimer = setInterval(load, intervalMs);
+    }
+
+    waitForWails(() => {
+      load();
+      startAutoRefresh(30000);
+    });
+  </script>
+</body>
+</html>
