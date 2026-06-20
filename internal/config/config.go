@@ -1,6 +1,8 @@
 package config
 
 import (
+	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -58,4 +60,16 @@ func Load(path string) (*Config, error) {
 func DefaultPath() string {
 	home, _ := os.UserHomeDir()
 	return filepath.Join(home, ".config", "antaran", "antaran.toml")
+}
+
+// Save writes cfg to path, creating the directory if needed.
+func Save(cfg *Config, path string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return fmt.Errorf("create config dir: %w", err)
+	}
+	var buf bytes.Buffer
+	if err := toml.NewEncoder(&buf).Encode(cfg); err != nil {
+		return fmt.Errorf("encode config: %w", err)
+	}
+	return os.WriteFile(path, buf.Bytes(), 0o600)
 }
