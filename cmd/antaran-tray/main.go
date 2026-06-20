@@ -41,31 +41,32 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Strip the "frontend/dist" prefix so Wails sees index.html at the root.
 	assets, err := fs.Sub(assetsFS, "frontend/dist")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "assets error: %v\n", err)
 		os.Exit(1)
 	}
 
-	app := anttray.NewApp(cfg)
+	app := anttray.NewApp(cfg, *cfgPath)
 
-	// wailsCtx is populated by OnStartup — used to show/hide the window.
 	var wailsCtx context.Context
 	ctxReady := make(chan struct{})
 
 	openWindow := func() {
-		// Wait until Wails has started before trying to show the window
 		<-ctxReady
 		wailsruntime.WindowShow(wailsCtx)
 		wailsruntime.WindowSetAlwaysOnTop(wailsCtx, true)
 		wailsruntime.WindowSetAlwaysOnTop(wailsCtx, false)
 	}
 
-	// cancelDaemon is called when Wails shuts down
 	daemonCtx, cancelDaemon := context.WithCancel(context.Background())
-
 	daemon := anttray.NewDaemon(app, cfg, openWindow)
+
+	// When config changes, tell the daemon to rescan immediately with new settings.
+	app.SetOnConfigChange(func() {
+		daemon.TriggerRescan()
+	})
+
 	go daemon.Run(daemonCtx)
 
 	err = wails.Run(&options.App{
@@ -84,6 +85,7 @@ func main() {
 		},
 		OnStartup: func(ctx context.Context) {
 			wailsCtx = ctx
+			app.SetContext(ctx)
 			close(ctxReady)
 		},
 		OnShutdown: func(ctx context.Context) {
