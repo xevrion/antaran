@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 	"github.com/xevrion/antaran/internal/config"
 	"github.com/xevrion/antaran/internal/process"
 	"github.com/xevrion/antaran/internal/scanner"
@@ -17,15 +18,30 @@ import (
 // App is the struct bound to the Wails frontend via wails.Bind().
 // All methods on this type are callable from JavaScript.
 type App struct {
-	mu      sync.RWMutex
-	cfg     *config.Config
-	repos   []scanner.RepoStatus
-	procs   []process.DevProcess
-	summary string
+	mu         sync.RWMutex
+	cfg        *config.Config
+	cfgPath    string
+	ctx        context.Context // set by SetContext, used for Wails dialogs
+	repos      []scanner.RepoStatus
+	procs      []process.DevProcess
+	summary    string
+	onCfgChange func() // called after config is mutated so daemon rescans
 }
 
-func NewApp(cfg *config.Config) *App {
-	return &App{cfg: cfg}
+func NewApp(cfg *config.Config, cfgPath string) *App {
+	return &App{cfg: cfg, cfgPath: cfgPath}
+}
+
+// SetContext is called by the daemon once the Wails context is available.
+func (a *App) SetContext(ctx context.Context) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.ctx = ctx
+}
+
+// SetOnConfigChange registers a callback invoked after any config mutation.
+func (a *App) SetOnConfigChange(fn func()) {
+	a.onCfgChange = fn
 }
 
 // --- called by the tray daemon goroutine ---
@@ -155,6 +171,77 @@ func (a *App) RefreshNow() ScanResult {
 	procs, _ := process.Scan(a.cfg.Process.Watch)
 	a.UpdateData(repos, procs)
 	return a.GetScanResult()
+}
+
+// Settings holds the subset of config exposed to the UI.
+type Settings struct {
+	ScanRoot       string `json:"scan_root"`
+	ScanIntervalS  int    `json:"scan_interval_s"`
+	StaleAfterDays int    `json:"stale_after_days"`
+	FetchRemote    bool   `json:"fetch_remote"`
+	MaxDepth       int    `json:"max_depth"`
+}
+
+// GetSettings returns the current config values for the settings panel.
+func (a *App) GetSettings() Settings {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return Settings{
+		ScanRoot:       a.cfg.ScanRoot,
+		ScanIntervalS:  int(a.cfg.ScanInterval.Seconds()),
+		StaleAfterDays: a.cfg.Git.StaleAfterDays,
+		FetchRemote:    a.cfg.Git.FetchRemote,
+		MaxDepth:       a.cfg.Git.MaxDepth,
+	}
+}
+
+// PickScanRoot opens a native directory picker and returns the chosen path.
+// The caller is responsible for calling SaveSettings with the result.
+func (a *App) PickScanRoot() string {
+	a.mu.RLock()
+	ctx := a.ctx
+	current := a.cfg.ScanRoot
+	a.mu.RUnlock()
+
+	if ctx == nil {
+		return ""
+	}
+	chosen, err := wailsruntime.OpenDirectoryDialog(ctx, wailsruntime.OpenDialogOptions{
+		DefaultDirectory:     current,
+		Title:                "Choose your projects folder",
+		CanCreateDirectories: true,
+	})
+	if err != nil || chosen == "" {
+		return current
+	}
+	return chosen
+}
+
+// SaveSettings persists new settings and triggers an immediate rescan.
+func (a *App) SaveSettings(s Settings) string {
+	a.mu.Lock()
+	a.cfg.ScanRoot = s.ScanRoot
+	if s.ScanIntervalS > 0 {
+		a.cfg.ScanInterval = time.Duration(s.ScanIntervalS) * time.Second
+	}
+	if s.StaleAfterDays > 0 {
+		a.cfg.Git.StaleAfterDays = s.StaleAfterDays
+	}
+	a.cfg.Git.FetchRemote = s.FetchRemote
+	if s.MaxDepth > 0 {
+		a.cfg.Git.MaxDepth = s.MaxDepth
+	}
+	cfgPath := a.cfgPath
+	cfg := a.cfg
+	a.mu.Unlock()
+
+	if err := config.Save(cfg, cfgPath); err != nil {
+		return "error saving config: " + err.Error()
+	}
+	if a.onCfgChange != nil {
+		go a.onCfgChange()
+	}
+	return "saved"
 }
 
 // --- helpers ---
