@@ -2,7 +2,29 @@
 
 ## Build Issues
 
-### `libwebkit2gtk` not found (Wails build only)
+### Fedora 40+ / webkit2gtk-4.1 (Wails build only)
+
+Wails v2 hardcodes `webkit2gtk-4.0` in its pkg-config calls, but Fedora 40+
+ships `webkit2gtk-4.1`. Run once to create a shim:
+
+```bash
+make pkgconfig-shim
+export PKG_CONFIG_PATH="$HOME/.cache/antaran-pkgconfig:$PKG_CONFIG_PATH"
+make build-tray
+```
+
+Add the `export` line to your `~/.zshrc` or `~/.bashrc` to make it permanent.
+
+Also pass `-tags legacy_appindicator` when building — Fedora has
+`libappindicator-gtk3` not the ayatana variant:
+
+```bash
+go build -tags legacy_appindicator ./...
+```
+
+`make build` and `make build-tray` handle both flags automatically.
+
+### `libwebkit2gtk` not found (Ubuntu/Debian, Wails build only)
 
 On Ubuntu 22.04:
 ```bash
