@@ -1,0 +1,13 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "antaran-tray",
+  "outputfilename": "antaran-tray",
+  "frontend:install": "",
+  "frontend:build": "",
+  "frontend:dev:watcher": "",
+  "frontend:dev:serverUrl": "",
+  "author": {
+    "name": "Yash Bavadiya",
+    "email": "krbavadiya11@gmail.com"
+  }
+}
