@@ -31,7 +31,7 @@ run:
 	go run ./cmd/antaran $(ARGS)
 
 run-tray:
-	GDK_BACKEND=x11 DISPLAY=:0 ./cmd/antaran-tray/bin/antaran-tray $(ARGS)
+	GDK_BACKEND=x11 DISPLAY=:0 ./cmd/antaran-tray/build/bin/bin/antaran-tray $(ARGS)
 
 test:
 	go test -race ./...
