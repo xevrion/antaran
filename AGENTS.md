@@ -1,136 +1,130 @@
-# AGENTS.md — Antaran Project Knowledge Base
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 > `CLAUDE.md` is a symlink to this file. Edit `AGENTS.md` only.
 
 ## Project Identity
 
-**Antaran** (अंतरण — "transfer/handover" in Hindi/Sanskrit) — a native Linux
-system tray daemon that watches your dev folder and surfaces what's actually
-consuming your machine and attention.
+**Antaran** (अंतरण — "transfer/handover" in Hindi/Sanskrit) is a native Linux system tray daemon that watches your dev folder and surfaces what is actually consuming your machine and attention.
 
 - **Tagline**: knows what your dev folder is hiding
-- **Stack**: Go 1.21+ (core) + Wails v2 (tray UI)
+- **Stack**: Go 1.21+ (core) + Wails v2 (tray UI) + pure-Go DBus SNI (tray icon)
 - **Platform**: Linux-first (Hyprland/Wayland primary, X11 graceful fallback)
-- **Binary size target**: <15MB
 
 ## Repository Structure
 
 ```
 antaran/
-├── cmd/antaran/           # CLI entrypoint (main.go)
+├── cmd/antaran/           # CLI binary entrypoint
+├── cmd/antaran-tray/      # Wails tray app entrypoint
+│   ├── main.go            # Wires daemon + Wails window
+│   ├── wails.json         # Wails project manifest
+│   └── frontend/dist/     # Hand-written HTML/CSS/JS frontend (embedded at build)
+├── tray/                  # Tray-specific library (imported by cmd/antaran-tray)
+│   ├── app.go             # App struct bound to Wails — all JS-callable methods
+│   ├── daemon.go          # Scan ticker + SNI icon lifecycle
+│   ├── sni.go             # Pure-Go DBus StatusNotifierItem implementation
+│   └── icon.go            # Embedded fallback icon bytes
 ├── internal/
-│   ├── config/            # Config loading (antaran.toml)
-│   ├── scanner/           # Git repo watcher
-│   │   ├── scanner.go     # Watcher interface + registry
-│   │   ├── dirty.go       # Uncommitted changes detector
-│   │   ├── unpushed.go    # Unpushed commits detector
-│   │   └── stale.go       # Stale branch detector
-│   └── process/           # Dev process watcher
-│       ├── process.go     # /proc scanner
-│       └── ports.go       # Port binding detector (/proc/net/tcp)
-├── frontend/              # Wails web frontend (HTML/CSS/JS)
-│   ├── src/
-│   └── index.html
-├── assets/                # Icons, branding
-├── docs/                  # Extended documentation
-│   ├── watchers.md        # Watcher interface docs
-│   ├── config.md          # Config reference
-│   └── faq.md             # Troubleshooting
-├── .github/
-│   ├── workflows/         # CI + release automation
-│   └── ISSUE_TEMPLATE/    # Bug + feature templates
-├── antaran.toml.example   # Annotated config example
-└── Makefile               # Common dev tasks
+│   ├── config/config.go   # TOML config loader with defaults
+│   ├── scanner/           # Git repo scanning
+│   │   ├── scanner.go     # walkGitRepos + RepoStatus type
+│   │   └── git.go         # git status/rev-list/log via os/exec
+│   └── process/           # Dev process detection
+│       ├── process.go     # /proc scanner, RSS, uptime, cmdline
+│       ├── ports.go       # /proc/net/tcp parser — listening port detection
+│       └── kill.go        # SIGTERM→SIGKILL with audit log
+├── docs/
+│   ├── watchers.md        # RepoStatus + DevProcess schemas, how to extend
+│   └── faq.md             # Distro-specific build and runtime issues
+├── scripts/pkgconfig-shim.sh  # Fedora webkit2gtk-4.0 shim helper
+├── antaran.toml.example   # Annotated config reference
+└── Makefile
 ```
 
 ## Development Commands
 
-| Command                        | Purpose                              |
-| ------------------------------ | ------------------------------------ |
-| `go run ./cmd/antaran`         | Run CLI (no Wails required)          |
-| `go build -o bin/antaran ./cmd/antaran` | Build CLI binary              |
-| `go test ./...`                | Run all tests                        |
-| `go vet ./...`                 | Static analysis                      |
-| `wails dev`                    | Wails hot-reload dev mode            |
-| `wails build`                  | Build full tray app binary           |
-| `make fmt`                     | Run gofmt + goimports                |
-| `make lint`                    | Run golangci-lint                    |
+```bash
+# CLI (no Wails required)
+make build              # builds bin/antaran
+make run ARGS="--root ~/projects"
+go test -race ./...
+go vet ./...
+gofmt -w .
 
-## Task Intake
+# Tray app (requires Wails + libwebkit2gtk)
+make pkgconfig-shim     # run once on Fedora 40+ to create webkit2gtk-4.0 shim
+export PKG_CONFIG_PATH="$HOME/.cache/antaran-pkgconfig:$PKG_CONFIG_PATH"
+make build-tray         # builds cmd/antaran-tray/build/bin/bin/antaran-tray
+make run-tray           # GDK_BACKEND=x11 DISPLAY=:0 ... (required on Nvidia)
 
-Prefer requests with:
+# Install
+make install            # CLI to ~/.local/bin/antaran
+make install-tray       # tray app to ~/.local/bin/antaran-tray
+```
 
-- `Goal`: exact bug, feature, or refactor target
-- `Scope`: which package(s) to inspect first
-- `Repro`: command or test that demonstrates the behavior
-- `Expected` / `Actual`: what should happen vs. what does
-- `Constraints`: what must not change
+Single package test: `go test -race ./internal/scanner/`
 
-When scope is unclear, inspect in this order:
+## Architecture
 
-1. `cmd/antaran/main.go` — entrypoint and flag wiring
-2. `internal/config/` — config schema and defaults
-3. `internal/scanner/` — git repo watchers
-4. `internal/process/` — /proc-based process scanner
-5. `frontend/` — only for UI/tray rendering issues
-6. `.github/workflows/` — only for CI/release issues
+### Two binaries, one library core
+
+`cmd/antaran` is a pure CLI — no CGO, no Wails. It imports `internal/` directly and prints human or JSON output. Good for scripting and testing the scanning logic in isolation.
+
+`cmd/antaran-tray` is the GUI binary. It imports `tray/` which wraps the same `internal/` packages. Wails embeds `cmd/antaran-tray/frontend/dist/index.html` at compile time via `//go:embed`. The embed path must be stripped with `fs.Sub(assetsFS, "frontend/dist")` before passing to Wails — Wails expects `index.html` at the FS root.
+
+### Tray icon vs. Wails window
+
+These are deliberately separate concerns:
+
+- **Tray icon** (`tray/sni.go`): pure-Go DBus implementation of the StatusNotifierItem protocol. Registers on the session bus as `org.kde.StatusNotifierItem-<pid>-1`, then calls `org.kde.StatusNotifierWatcher.RegisterStatusNotifierItem`. No GTK, no C. Left-click calls `onActivate` which calls `wailsruntime.WindowShow`.
+- **Wails window** (`cmd/antaran-tray/main.go`): owns the GTK main loop. `Linux.WebviewGpuPolicy` is set to `WebviewGpuPolicyNever` — required on Nvidia proprietary drivers where hardware-accelerated WebKit silently fails to load the `wails://` URI scheme, leaving the window blank.
+
+These two must never share a GTK main loop. `tray/daemon.go` runs in a goroutine; Wails runs on the main goroutine.
+
+### Scanning
+
+`tray/daemon.go` owns a `time.Ticker` at `cfg.ScanInterval` (default 30s). Each tick calls `scanner.New(root, depth).Scan(ctx)` and `process.Scan(watchList)`, then calls `app.UpdateData()` which stores results under a `sync.RWMutex`. The Wails frontend calls `app.GetScanResult()` or `app.RefreshNow()` via JS bindings.
+
+Git commands run with a 5-second `context.WithTimeout` per repo via `os/exec`. A hung `git status` must not block the scan.
+
+### Port detection
+
+`internal/process/ports.go` reads `/proc/net/tcp` and `/proc/net/tcp6`, filtering for state `0A` (LISTEN). Port bytes are big-endian hex in the last 4 chars of the `local_address` field. Socket inodes are correlated to PIDs by reading `/proc/<pid>/fd/` symlinks. Do not reimplement this logic elsewhere.
+
+### Kill audit log
+
+`internal/process/kill.go` writes to `~/.local/share/antaran/operations.log` before sending any signal. Log entry is written first, then SIGTERM, then a 2-second wait, then SIGKILL if the process is still in `/proc/<pid>`.
+
+### Wails JS bindings
+
+All JS-callable methods live on `tray.App` (`tray/app.go`). Wails generates bindings at build time into `cmd/antaran-tray/frontend/wailsjs/` (gitignored). The frontend accesses them as `window.go.tray.App.<MethodName>()`. Do not add bound methods to any other type.
 
 ## Code Conventions
 
-- All Go code must pass `gofmt` and `go vet` — CI rejects anything else
+- `gofmt` and `go vet` are enforced by CI — both must pass before committing
 - Error strings: lowercase, no trailing punctuation
-- All `/proc/<pid>/` reads must handle `ENOENT` gracefully — processes die mid-scan
-- No `fmt.Println` in production paths — use the structured logger in `internal/log/`
-- Comments only for non-obvious constraints or workarounds; never restate identifiers
-- Tests live next to their source file (`foo_test.go` in same package)
+- All `/proc/<pid>/` reads must handle `ENOENT` gracefully — processes vanish mid-scan
+- No `fmt.Println` in non-main packages
+- Tests live next to source (`foo_test.go`, same package)
 
 ## Key Invariants
 
-- The scanner must never block the tray UI. All scans run in a goroutine; results are sent over a channel with a timeout.
-- The process watcher reads `/proc` directly — no `ps`, no shell subprocesses. This keeps it fast and dependency-free.
-- Git operations use `os/exec` with a hard 5-second timeout per repo. A hung `git status` must not hang the whole scan.
-- Config is optional: if `~/.config/antaran/antaran.toml` does not exist, Antaran runs with sensible defaults (`~/Coding`, 30-second scan interval).
+- Config is optional. If `~/.config/antaran/antaran.toml` is absent, defaults apply: `scan_root=~/Coding`, `scan_interval=30s`, `git.max_depth=3`, `git.stale_after_days=14`.
+- `git.fetch_remote` is `false` by default. When true, it is the only network call Antaran makes and can be slow on large repos.
+- The scanner goroutine must never block the Wails UI thread.
 
-## Current Risk Areas
+## Build Notes (Fedora / Nvidia)
 
-- `/proc/net/tcp` and `/proc/net/tcp6` encode ports in hex little-endian. Parsing these is subtle — see `internal/process/ports.go` for the canonical parser. Do not reimplement this logic elsewhere.
-- Stale branch detection requires a `git fetch` to get remote state. This is the only network call Antaran makes. It's opt-in (disabled by default) because it can be slow on large repos or slow networks.
-- The Wails frontend communicates with Go via `wails.Bind()`. The bound struct is `App` in `cmd/antaran/app.go`. When adding a new method, keep it on `App` — don't create parallel bound types.
-- `libwebkit2gtk` version requirements vary by distro. On Ubuntu 22.04 you need `libwebkit2gtk-4.0-dev`; on Ubuntu 24.04 it's `libwebkit2gtk-4.1-dev`. The CI matrix covers both.
+Fedora 40+ ships `webkit2gtk-4.1` but Wails hardcodes `webkit2gtk-4.0` in pkg-config. Run `make pkgconfig-shim` once to create `~/.cache/antaran-pkgconfig/webkit2gtk-4.0.pc` and export `PKG_CONFIG_PATH`.
 
-## Branch Strategy
+On Nvidia proprietary drivers, `GDK_BACKEND=x11 DISPLAY=:0` is required to launch the tray app from a terminal. `make run-tray` sets these automatically. For autostart, add to `~/.config/hypr/hyprland.conf`:
 
-- `main` — only branch. All development and releases happen here.
-- Tag format: `v0.x.x` (lowercase v). Current version: check `go.mod` module line or `cmd/antaran/version.go`.
-
-## Release Workflow (CI)
-
-Pushing a `v*` tag triggers `.github/workflows/release.yml`:
-
-1. **build** — compiles for `linux/amd64` and `linux/arm64`
-2. **package** — produces `.tar.gz` archives + checksums
-3. **release** — creates GitHub Release and attaches artifacts
-
-`.github/workflows/ci.yml` runs on every push and PR: `go test`, `go vet`, `gofmt` check.
-
-## Watcher Interface
-
-Adding a new watcher means implementing:
-
-```go
-type Watcher interface {
-    Scan(ctx context.Context) ([]Finding, error)
-    Name() string
-}
+```ini
+exec-once = GDK_BACKEND=x11 DISPLAY=:0 antaran-tray
 ```
 
-Register it in `internal/scanner/registry.go`. See `docs/watchers.md` for the
-full Finding schema.
+## Release
 
-## Documentation Guidelines
-
-- **README.md**: features, install, quick start, screenshot. Keep it short.
-- **docs/config.md**: every config key, type, default, and example.
-- **docs/watchers.md**: watcher interface, Finding schema, how to add one.
-- **docs/faq.md**: distro-specific issues, permission problems, Wails build deps.
-- Don't put config key details in the README — link to `docs/config.md`.
+Tag format: `v0.x.x` (lowercase v). Pushing a `v*` tag triggers `.github/workflows/release.yml`, which builds for `linux/amd64` and `linux/arm64`, produces `.tar.gz` + checksums, and creates a GitHub Release.

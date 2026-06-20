@@ -1,9 +1,5 @@
-<div align="center">
-  <img src="assets/icon.png" width="120" alt="Antaran icon" />
-</div>
-
 <h1 align="center">Antaran</h1>
-<h3 align="center">अंतरण — knows what your dev folder is hiding</h3>
+<h3 align="center">अंतरण &mdash; knows what your dev folder is hiding</h3>
 
 <p align="center">
   <a href="https://github.com/xevrion/antaran/actions/workflows/ci.yml">
@@ -21,10 +17,8 @@
 </p>
 
 <p align="center">
-  A native Linux system tray daemon that watches your dev environment and surfaces what's actually consuming your machine and attention.
+  A native Linux system tray daemon that watches your dev environment and surfaces what is actually consuming your machine and attention.
 </p>
-
----
 
 ## What it does
 
@@ -34,29 +28,60 @@ Antaran watches your `~/Coding` folder and tells you:
 
 - **Dirty repos** — which git repos have uncommitted changes, unpushed commits, or branches that haven't been touched in weeks
 - **Zombie dev servers** — which node/cargo/vite/bun processes are still running, what ports they're listening on, how long they've been up, and how much RAM they're eating
-- **One-click actions** (tray UI) — kill a process, open a repo in your editor, copy git status to clipboard
+- **One-click actions** (tray UI) — kill a process, open a repo in your editor
 
 The tray icon shows a live summary:
 
 ```
-3 dirty repos · 2 zombie dev servers eating 118MB
+38 dirty repos · 3 zombie dev servers eating 94MB
 ```
 
-Click it to expand the full list.
+Click to expand the full list.
 
 ## Features
 
 - Scans a configurable root folder (default `~/Coding`) for git repos
 - Detects uncommitted changes, unpushed commits, and stale branches
-- Finds long-running dev processes via `/proc` — no `ps`, no shell subprocesses
-- Shows which ports each process is listening on (reads `/proc/net/tcp` directly)
-- Works as a CLI tool today, tray daemon coming next
-- Single static binary, ~10MB, zero runtime dependencies
-- Hyprland-first, graceful on other Wayland/X11 setups
+- Finds long-running dev processes via `/proc` directly -- no `ps`, no shell subprocesses
+- Shows which TCP ports each process is listening on
+- System tray icon via StatusNotifierItem (works with Hyprland, KDE, GNOME)
+- Click to expand a dark-themed popup window with repo and process details
+- Kill button with SIGTERM then SIGKILL escalation and audit log
+- Also ships as a standalone CLI (`antaran`) for scripting and CI use
+- Hyprland-first, graceful on other Wayland and X11 setups
 
 ## Install
 
-### From release (recommended)
+### Tray app from source
+
+Requires Go >= 1.21, Wails v2, and `libwebkit2gtk`.
+
+```bash
+git clone https://github.com/xevrion/antaran.git
+cd antaran
+
+# Fedora 40+ only: create a webkit2gtk-4.0 shim once
+make pkgconfig-shim
+export PKG_CONFIG_PATH="$HOME/.cache/antaran-pkgconfig:$PKG_CONFIG_PATH"
+
+make build-tray
+make install-tray    # installs to ~/.local/bin/antaran-tray
+```
+
+Add to your Hyprland config:
+
+```ini
+exec-once = GDK_BACKEND=x11 DISPLAY=:0 antaran-tray
+```
+
+### CLI only (no Wails required)
+
+```bash
+make build
+make install    # installs to ~/.local/bin/antaran
+```
+
+Or from a release tarball:
 
 ```bash
 curl -Lo antaran.tar.gz \
@@ -65,86 +90,56 @@ tar -xzf antaran.tar.gz
 install -Dm755 antaran-linux-amd64 ~/.local/bin/antaran
 ```
 
-### From source
+## CLI usage
 
 ```bash
-git clone https://github.com/xevrion/antaran.git
-cd antaran
-make build
-make install   # installs to ~/.local/bin/antaran
-```
-
-Requires Go ≥ 1.21. No other build dependencies for the CLI.
-
-## Usage
-
-```bash
-# Scan ~/Coding (or whatever scan_root is set to)
-antaran
-
-# Override the scan root
-antaran --root ~/projects
-
-# JSON output (for scripting or tray integration)
-antaran --json
-
-# Use a custom config file
+antaran                          # scan ~/Coding
+antaran --root ~/projects        # override scan root
+antaran --json                   # JSON output for scripting
 antaran --config /path/to/antaran.toml
 ```
 
 ### Example output
 
 ```
-antaran — scanning /home/yash/Coding
+antaran -- scanning /home/yash/Coding
 
-  3 dirty repos · 2 zombie dev servers eating 118MB
+  38 dirty repos · 3 zombie dev servers eating 94MB
 
-── git repos (42 scanned) ──
+-- git repos (114 scanned) --
   antaran                         [main]  2 staged, 1 untracked
   marknote                        [feat/block-editor]  5 unstaged
   nyamp                           [main]  stale 27d
 
-── dev processes ──
+-- dev processes --
   node      pid:6173    up:10h24m    7MB    :3000
   bun       pid:2782823  up:24m      74MB   :8080
 ```
 
 ## Configuration
 
-Copy the example config and edit:
-
 ```bash
 mkdir -p ~/.config/antaran
 cp antaran.toml.example ~/.config/antaran/antaran.toml
 ```
 
-Key options:
+Config is optional -- Antaran runs with sensible defaults if the file is absent.
 
 | Key | Default | Description |
 |-----|---------|-------------|
 | `scan_root` | `~/Coding` | Root directory to scan for git repos |
-| `scan_interval` | `30s` | How often to refresh (tray mode) |
-| `git.max_depth` | `3` | How deep to search for repos |
-| `git.stale_after_days` | `14` | Days before a quiet branch is "stale" |
-| `git.fetch_remote` | `false` | Fetch before checking unpushed commits |
+| `scan_interval` | `30s` | How often to refresh in tray mode |
+| `git.max_depth` | `3` | Directory depth to search for repos |
+| `git.stale_after_days` | `14` | Days of inactivity before a branch is flagged |
+| `git.fetch_remote` | `false` | Fetch before checking for unpushed commits |
 | `process.watch` | `[node, cargo, vite, ...]` | Process names to watch |
 
 See [`antaran.toml.example`](antaran.toml.example) for the full reference.
 
-## Tray app (coming soon)
-
-The CLI is the working core. The Wails tray UI is next — it will wrap the same scanning logic in a native popup window with one-click actions. Requires `libwebkit2gtk`.
-
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). Adding a new watcher is intentionally small — implement one interface, register it, write a test.
+See [CONTRIBUTING.md](CONTRIBUTING.md). Adding a new watcher is intentionally small -- implement one interface, write a test.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
-
----
-
-<p align="center">
-  Built by <a href="https://github.com/xevrion">Yash Bavadiya</a> · IIT Jodhpur · GSoC 2026 prep
-</p>
+MIT -- see [LICENSE](LICENSE).
